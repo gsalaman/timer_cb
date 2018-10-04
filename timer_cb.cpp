@@ -66,7 +66,7 @@ static void init_tick_timer( void )
   TCCR1B |= (B00000100);    // 256 prescaler 
   TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
   interrupts();             // enable all interrupts  
-
+  
 }  // init_tick_timer
 
 /*====================================================
@@ -93,10 +93,23 @@ timer_cb_reg_return_type timer_cb_reg(void (*cb_func)(void), int expire_ms)
 {
   unsigned long current_time;
   
+  // Causal operations only.
+  if (expire_ms < 0)
+  {  
+    return TIMER_CB_REG_INVALID_EXPIRE;
+  }
+
+  // current implementation only allows one callback at a time.  
+  if (user_cb)
+  {
+    return TIMER_CB_REG_NO_TIMER_AVAILABLE;
+  }
+  
   // Check to see whether we've initialized the timer callback module.
   if (!timer_cb_inited)
   {
     init_tick_timer();  
+    timer_cb_inited = TRUE;
   }
 
   // what time is it now?
@@ -107,7 +120,9 @@ timer_cb_reg_return_type timer_cb_reg(void (*cb_func)(void), int expire_ms)
 
   // set the user callback.
   user_cb = cb_func;
-  
+
+  return TIMER_CB_REG_SUCCESS;  
+
 }  // timer_cb_reg
 
 /*====================================================================
@@ -122,6 +137,9 @@ timer_cb_reg_return_type timer_cb_reg(void (*cb_func)(void), int expire_ms)
 ISR(TIMER1_COMPA_vect)
 {
   unsigned long current_time;
+
+  // If there's no timer registered, we have nothing to do!
+  if (!user_cb) return;
   
   // What time is it now?
   current_time = millis();
@@ -131,6 +149,9 @@ ISR(TIMER1_COMPA_vect)
   {
     // call the user callback
     user_cb();
+
+    // this is a one time call, so remove the callback
+    user_cb = NULL;
   }
 
 }  // Time Tick ISR
