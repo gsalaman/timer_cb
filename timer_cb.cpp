@@ -9,27 +9,19 @@
  *  Implementation:
  *     Since timers on the arduino only go to a couple seconds,
  *     we create a tick timer with associated ISR that gets 
- *     called every 10 ms.  We use that to 
+ *     called every 2 ms.  We use that to 
  *     check and see whether a given timer has expired.
  *   
  * Side Effects and Dependencies:
- *    Takes over TIMER1.   
+ *    Takes over TIMER2.   
  *======================================================*/
 
 #include "timer_cb.h"
 #include <arduino.h>
 
-#if !defined(TRUE)
-#define TRUE 1
-#endif
-
-#if !defined(FALSE)
-#define FALSE 0
-#endif
-
 // No explicit init function needed; we'll use this 
 // flag to check and see if we need to init the library.
-static bool timer_cb_inited=FALSE;
+static bool timer_cb_inited=false;
 
 // Currently only support one timer at a given time.
 void (*user_cb)(void)=NULL;
@@ -42,7 +34,7 @@ unsigned long expire_time;
  * 
  * Description:
  *  This function initializes our timer module, specifically
- *  setting up TIMER1 as a 10ms periodic timer.
+ *  setting up TIMER2 as a 2ms periodic timer.
  *
  * Parameters:  None
  *
@@ -50,22 +42,22 @@ unsigned long expire_time;
  *======================================================*/
 static void init_tick_timer( void )
 {
-  // current iteration:  tick every 10 ms.
-  //    Math:  10ms period = 100 Hz.
-  //           use prescaler of 256.
-  //           compare match register:  16 MHz/256/100 = 625.
-  int compare_match_reg=625;
+  // current iteration:  tick every 2 ms.
+  //    Math:  2ms period = 500 Hz.
+  //           use prescaler of 256 
+  //           compare match register:  16 MHz/256/500 = 125.
+  int compare_match_reg=125;
 
-  // initialize timer1 
+  // initialize timer2 
   noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1  = 0;
-  OCR1A = compare_match_reg;// compare match register 
-  TCCR1B |= (1 << WGM12);   // CTC mode
-  TCCR1B |= (B00000100);    // 256 prescaler 
-  TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
-  interrupts();             // enable all interrupts  
+  TCCR2A = 0;
+  TCCR2B = 0;
+  TCNT2  = 0;
+  OCR2A = compare_match_reg;// compare match register 
+  TCCR2B |= (B00000010);   // CTC mode
+  TCCR2B |= (B00000110);    // 256 prescaler 
+  TIMSK2 |= (1 << OCIE2A);   // enable timer compare interrupt
+  interrupts();              // enable all interrupts  
   
 }  // init_tick_timer
 
@@ -109,7 +101,7 @@ timer_cb_reg_return_type timer_cb_reg(void (*cb_func)(void), int expire_ms)
   if (!timer_cb_inited)
   {
     init_tick_timer();  
-    timer_cb_inited = TRUE;
+    timer_cb_inited = true;
   }
 
   // what time is it now?
@@ -134,7 +126,7 @@ timer_cb_reg_return_type timer_cb_reg(void (*cb_func)(void), int expire_ms)
  * We currently check current time and, if the expire for our callback has passed,
  * call the callback function.   
  * ==================================================================*/
-ISR(TIMER1_COMPA_vect)
+ISR(TIMER2_COMPA_vect)
 {
   unsigned long current_time;
 
